@@ -1,0 +1,138 @@
+<?php
+defined('BASEPATH') OR exit('No direct script access allowed');
+
+class User extends CI_Controller {
+
+	/**
+	 * Index Page for this controller.
+	 *
+	 * Maps to the following URL
+	 * 		http://example.com/index.php/welcome
+	 *	- or -
+	 * 		http://example.com/index.php/welcome/index
+	 *	- or -
+	 * Since this controller is set as the default controller in
+	 * config/routes.php, it's displayed at http://example.com/
+	 *
+	 * So any other public methods not prefixed with an underscore will
+	 * map to /index.php/welcome/<method_name>
+	 * @see https://codeigniter.com/user_guide/general/urls.html
+	 */
+
+	protected $model = "user_model";
+	protected $appName = "user";
+
+	public function __construct() {
+        parent::__construct();
+        $this->load->model($this->model,'mdl');
+        if(!$this->session->userdata('logged')){
+            redirect('auth/login');
+        }
+    }
+
+	public function index()
+	{
+		$config["base_url"] = null;
+		$searchterm = ''; 
+		if ($this->input->post('search')){
+		    $searchterm = $this->input->post('default');
+		    $this->session->set_userdata('searchterm', $searchterm);
+		}
+		else if ($this->session->userdata('searchterm')){
+		    $searchterm = $this->session->userdata('searchterm');
+		}
+		else{
+			$this->session->set_userdata('searchterm', null);
+		}
+
+		$offset = $this->uri->segment(3) ? $this->uri->segment(3) : 0;
+		$limit  = 10;
+		$totalFiltered = $this->mdl->getAll($searchterm,$limit,$offset,TRUE);
+		$getData = $this->mdl->getAll($searchterm,$limit,$offset,FALSE);
+		$config["base_url"] = base_url($this->appName.'/index');
+		$config["total_rows"] = $totalFiltered;
+        $config["per_page"] = $limit;
+        $config['full_tag_open'] = "<ul class='pagination'>";
+		$config['full_tag_close'] ="</ul>";
+		$config['num_tag_open'] = '<li>';
+		$config['num_tag_close'] = '</li>';
+		$config['cur_tag_open'] = "<li class='disabled'><li class='active'><a href='#'>";
+		$config['cur_tag_close'] = "<span class='sr-only'></span></a></li>";
+		$config['next_tag_open'] = "<li>";
+		$config['next_tagl_close'] = "</li>";
+		$config['prev_tag_open'] = "<li>";
+		$config['prev_tagl_close'] = "</li>";
+		$config['first_tag_open'] = "<li>";
+		$config['first_tagl_close'] = "</li>";
+		$config['last_tag_open'] = "<li>";
+		$config['last_tagl_close'] = "</li>";
+        $this->pagination->initialize($config);
+        $str_links = $this->pagination->create_links();
+        $links = explode('&nbsp;', $str_links);
+        $data = array(
+            'results' =>$getData->result(),
+            'links' => $links
+        );
+
+		$this->load->view($this->appName.'/index',$data);
+	}
+
+	public function create()
+	{
+		$this->load->view($this->appName.'/create');
+	}
+
+	public function save()
+	{
+		$this->form_validation->set_rules('username', 'Username', 'min_length[5]|max_length[15]|required|regex_match[/^[a-z0-9]+$/]|is_unique[user.username]');
+        $this->form_validation->set_rules('email', 'Email Address', 'trim|required|valid_email|is_unique[user.email]');
+        $this->form_validation->set_rules('password', 'Password', 'trim|required|min_length[8]');
+        if ($this->form_validation->run() == TRUE) {
+			$_POST["password"] = md5($_POST["password"]);
+			$this->mdl->insert($_POST);
+			$this->session->set_flashdata('message', 'Your item has been saved.');
+			redirect($this->appName);
+        }else{
+        	$this->load->view($this->appName.'/create');
+        }
+
+	}
+
+	public function show($id)
+	{
+		$this->load->view($this->appName.'/show',["data"=>$this->mdl->find($id)]);
+	}
+
+	public function edit($id)
+	{
+		$this->load->view($this->appName.'/edit',["data"=>$this->mdl->find($id)]);
+	}
+
+	public function update()
+	{
+		$id = $this->input->post('id');
+		$this->form_validation->set_rules('username', 'Username', 'min_length[5]|max_length[15]|required|edit_unique[user.username.' . $id . ']|regex_match[/^[a-z0-9]+$/]');
+        $this->form_validation->set_rules('email', 'Email Address', 'trim|required|valid_email|edit_unique[user.email.' . $id . ']');
+        if($this->input->post('password')){
+        	$this->form_validation->set_rules('password', 'Password', 'trim|required|min_length[8]');
+        }
+
+        if ($this->form_validation->run() == TRUE) {
+        	$_POST["password"] = md5($_POST["password"]);
+			$this->mdl->update($_POST,$id);
+			$this->session->set_flashdata('message', 'Your item has been updated.');
+			redirect($this->appName);
+        }else{
+        	$this->load->view($this->appName.'/edit',["data"=>$this->mdl->find($id)]);
+        }
+	}
+
+	public function delete($id)
+	{
+		$this->mdl->delete($id);
+		$this->session->set_flashdata('message', 'Your item has been deleted.');
+		redirect($this->appName);
+	}
+
+	
+}
